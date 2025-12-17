@@ -2,7 +2,7 @@ name: Build & Deploy Multi-Orchestrator App
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   deploy:
@@ -18,28 +18,34 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
-    
+
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: "1.7.0"
+
     - name: Terraform Init
       run: |
         cd terraform
         terraform init
-    - name: Terraform Plan
-      run: |
-        cd terraform
-        terraform plan
 
     - name: Terraform Apply
       run: |
         cd terraform
         terraform apply -auto-approve
 
-    # --- ADD THIS: Connect to your EKS Cluster ---
+    # ⏳ Wait for EKS to be ACTIVE
+    - name: Wait for EKS Cluster
+      run: |
+        aws eks wait cluster-active \
+          --name eks-demo-cluster \
+          --region ${{ secrets.AWS_REGION }}
+
     - name: Update KubeConfig
-      run: aws eks update-kubeconfig --name eks-demo-cluster --region ${{ secrets.AWS_REGION }}
+      run: |
+        aws eks update-kubeconfig \
+          --name eks-demo-cluster \
+          --region ${{ secrets.AWS_REGION }}
 
     - name: Login to ECR
       uses: aws-actions/amazon-ecr-login@v2
@@ -47,11 +53,13 @@ jobs:
     - name: Build & Push Docker Image
       run: |
         docker build -t multi-platform-app ./app
-        docker tag multi-platform-app:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
-        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
+        docker tag multi-platform-app:latest \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
+        docker push \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
 
-    - name: EKS Deploy
+    - name: Deploy to EKS
       run: |
-        # Ensure deployment.yaml is in the root or provide the correct path
-        kubectl apply -f deployment.yaml 
-        kubectl get svc web-service
+        kubectl apply -f app/deployment.yaml
+        kubectl rollout status deployment web-app
+        kubectl get svc
