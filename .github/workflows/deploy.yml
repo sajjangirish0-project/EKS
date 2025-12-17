@@ -1,38 +1,45 @@
-name: Build and Push Docker Image to ECR
+name: Build & Deploy Multi-Orchestrator App
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
-  build-and-push:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
+    - name: Login to ECR
+      uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build Docker image
-        run: |
-          docker build -t multi-platform-app ./app
+    - name: Build & Push Docker Image
+      run: |
+        docker build -t multi-platform-app ./app
+        docker tag multi-platform-app:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
+        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
 
-      - name: Tag Docker image
-        run: |
-          docker tag multi-platform-app:latest \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
+    - name: Terraform Init
+      run: |
+        cd terraform
+        terraform init
 
-      - name: Push Docker image to ECR
-        run: |
-          docker push \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
+    - name: Terraform Apply
+      run: |
+        cd terraform
+        terraform apply -auto-approve
+
+    - name: EKS Deploy
+      run: |
+        kubectl apply -f deployment.yaml ./app
+        kubectl get svc web-service
+
