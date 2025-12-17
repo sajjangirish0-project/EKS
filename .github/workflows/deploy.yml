@@ -19,15 +19,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Login to ECR
-      uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Build & Push Docker Image
-      run: |
-        docker build -t multi-platform-app ./app
-        docker tag multi-platform-app:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
-        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
-
     - name: Terraform Init
       run: |
         cd terraform
@@ -38,8 +29,16 @@ jobs:
         cd terraform
         terraform apply -auto-approve
 
+    - name: Login to ECR
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build & Push Docker Image
+      run: |
+        docker build -t multi-platform-app ./app
+        docker tag multi-platform-app:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
+        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/multi-platform-app:latest
+
     - name: EKS Deploy
       run: |
         kubectl apply -f deployment.yaml ./app
         kubectl get svc web-service
-
