@@ -1,4 +1,4 @@
-resource "aws_ecr_repository" "multi_platform_app" {
+resource "aws_ecr_repository" "app" {
   name                 = "multi-platform-app"
   image_tag_mutability = "MUTABLE"
 
@@ -11,3 +11,4 @@ resource "aws_ecr_repository" "multi_platform_app" {
     Env     = "dev"
   }
 }
+
